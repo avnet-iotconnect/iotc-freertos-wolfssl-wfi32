@@ -1,0 +1,112 @@
+{
+    "code": "wfi32demo",
+    "name": "wfi32demo",
+    "authType": 2,
+    "attributes": [
+        {
+            "name": "version",
+            "type": "STRING",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "Onboard_Temp_DegC",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "Onboard_Light_Lux",
+            "type": "INTEGER",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "WFI32IoT_button1",
+            "type": "INTEGER",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "WFI32IoT_button2",
+            "type": "INTEGER",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "WFI32IoT_button1_count",
+            "type": "INTEGER",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "WFI32IoT_button2_count",
+            "type": "INTEGER",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "LED_Red",
+            "type": "STRING",
+            "description": null,
+            "unit": null,
+            "attributeColor": "#f44e3b"
+        },
+        {
+            "name": "LED_Blue",
+            "type": "STRING",
+            "description": null,
+            "unit": null,
+            "attributeColor": "#7b64ff"
+        },
+        {
+            "name": "LED_Green",
+            "type": "STRING",
+            "description": null,
+            "unit": null,
+            "attributeColor": "#68bc00"
+        }
+    ],
+    "commands": [
+        {
+            "name": "led-green",
+            "command": "led-green",
+            "requiredParam": true,
+            "requiredAck": false,
+            "isOTACommand": false
+        },
+        {
+            "name": "led-red",
+            "command": "led-red",
+            "requiredParam": true,
+            "requiredAck": false,
+            "isOTACommand": false
+        },
+        {
+            "name": "reset-counters",
+            "command": "reset-counters",
+            "requiredParam": false,
+            "requiredAck": true,
+            "isOTACommand": false
+        },
+        {
+            "name": "led-blue",
+            "command": "led-blue",
+            "requiredParam": true,
+            "requiredAck": false,
+            "isOTACommand": false
+        }
+    ],
+    "messageVersion": "2.1",
+    "msgCode": "XG4ENVD",
+    "greenGrass": "0",
+    "wireless": "0",
+    "properties": {
+        "description": null,
+        "dataFrequency": "60",
+        "fileSupport": false
+    },
+    "_meta": {
+        "version": "2.0"
+    }
+}
