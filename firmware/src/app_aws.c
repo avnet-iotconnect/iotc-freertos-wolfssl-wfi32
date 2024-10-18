@@ -27,6 +27,11 @@
 #include "cJSON.h"
 #include "iot_network_wolfssl.h"
 
+#if 1
+#include "iotcl_log.h"
+#include "iotcl_util.h"
+#endif
+
 // *****************************************************************************
 
 char g_Cloud_Endpoint[100];
@@ -184,6 +189,24 @@ void APP_AWS_Initialize( void )
     appAwsData.pendingMessages = 0;
     
 }
+static void set_up_qualification_mode(void) {
+    IotclMqttConfig *mc = iotcl_mqtt_get_config();
+    if (!mc) {
+        IOTCL_ERROR(IOTCL_ERR_CONFIG_ERROR, "set_up_qualification_mode called, but not initialized?");
+    	return;
+    }
+    const char* qualification_topic = "qualification";
+    if (0 != strcmp(qualification_topic, mc->pub_rpt)) {
+        IOTCL_INFO("AWS Qualification is set up");
+    	// we need to override
+    	iotcl_free(mc->pub_rpt);
+    	iotcl_free(mc->pub_ack);
+    	iotcl_free(mc->sub_c2d);
+    	mc->pub_rpt = iotcl_strdup(qualification_topic);
+    	mc->pub_ack = iotcl_strdup(qualification_topic);
+    	mc->sub_c2d = iotcl_strdup(qualification_topic);
+    }
+}
 
 // *****************************************************************************
 
@@ -287,13 +310,16 @@ void APP_AWS_Tasks ( void )
                     appAwsData.awsCloudTaskState = APP_AWS_CLOUD_ERROR;
                     break;
                 }
-                
+                iotcl_deinit();
                 iotcl_init_client_config(&config);
                 config.device.instance_type = IOTCL_DCT_AWS_DEDICATED;
                 config.device.duid = pClientIdentifierBuffer;
                 config.mqtt_send_cb = IoTC_Publish;
-                config.events.cmd_cb = IoTC_CMD;
-                iotcl_init(&config);
+                config.events.cmd_cb = IoTC_CMD;                
+                iotcl_init_and_print_config(&config);
+#if 1
+                set_up_qualification_mode();
+#endif                
                 IoTC_mqtt = iotcl_mqtt_get_config();
                 
 
@@ -386,6 +412,9 @@ void APP_AWS_Tasks ( void )
 
                     /* Publish messages. */
                     IotclMessageHandle msg = iotcl_telemetry_create();
+#if 1
+                    iotcl_telemetry_set_string(msg, "qualification", "true");
+#else
                     iotcl_telemetry_set_number(msg, "WFI32IoT_button1", app_deviceData.switch1Status);
                     iotcl_telemetry_set_number(msg, "WFI32IoT_button1_count", app_deviceData.switch1Cnt);
                     iotcl_telemetry_set_number(msg, "WFI32IoT_button2", app_deviceData.switch2Status);
@@ -395,9 +424,9 @@ void APP_AWS_Tasks ( void )
                     iotcl_telemetry_set_string(msg, "LED_Blue", app_deviceData.LED_Blue ? "On" : "Off");
                     iotcl_telemetry_set_string(msg, "LED_Green", app_deviceData.LED_Green ? "On" : "Off");
                     iotcl_telemetry_set_string(msg, "LED_Red",  app_deviceData.LED_Red ? "On" : "Off");
-                    iotcl_mqtt_send_telemetry(msg, true);
+#endif
+                    iotcl_mqtt_send_telemetry(msg, false);
                     iotcl_telemetry_destroy(msg); 
-    
                     appAwsData.publishToCloud = false;
                 }
             }

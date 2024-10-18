@@ -59,15 +59,63 @@ int read(int handle, void *buffer, unsigned int len)
     return nChars;
 }
 
+#define LINE_BUFFER_SIZE 200
+void process_input(const char *input, size_t size) {
+    static char line_buffer[LINE_BUFFER_SIZE + 1] = {0};  // +1 for null terminator
+    static int buffer_index = 0;  // Tracks the current position in the buffer
+
+    for (size_t i = 0; i < size; i++) {
+        if (input[i] == '\n') {
+            // Print the buffer if we encounter a newline and reset the buffer
+            line_buffer[buffer_index] = '\0';  // Null-terminate the buffer
+            if (0 == strncmp("od 100", line_buffer, strlen("od 100"))
+                || 0 == strncmp("MAC:", line_buffer, strlen("MAC:"))
+               ) {
+                buffer_index = 0;
+                return;
+            }
+            if(0 == buffer_index) {
+                // empty line
+                return;
+            }
+            bool success = false;
+            do
+            {
+                success = UART3_Write(line_buffer, buffer_index);
+            }while( !success);
+            
+            success = false;
+            do
+            {
+                success = UART3_Write("\n", 1);
+            }while( !success);
+            buffer_index = 0;  // Reset the buffer index
+        } else if (input[i] == '\r') {
+            ; // ignore it and do not put it into the line buffer. It is a bug to have \r in the output.
+        } else {
+            if (buffer_index < LINE_BUFFER_SIZE) {
+                // Add character to buffer if there is space
+                line_buffer[buffer_index++] = input[i];
+            }
+            // If buffer is full, continue ignoring characters until newline is encountered
+        }
+    }
+}
+
+#include <string.h>
 int write(int handle, void * buffer, size_t count)
 {
-   bool success = false;
    if (handle == 1)
    {
+#if 1
+        process_input((const char *) buffer, count);
+#else
+       bool success = false;
        do
        {
            success = UART3_Write(buffer, count);
        }while( !success);
+#endif
    }
    return (int)count;
 }

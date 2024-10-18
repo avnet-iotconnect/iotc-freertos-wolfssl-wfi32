@@ -107,6 +107,16 @@ int NET_PRES_EncGlue_StreamClientSendCb0(void *sslin, char *buf, int sz, void *c
 	
 static uint8_t _net_pres_wolfsslUsers = 0;
 
+static int ssl_verify_cb(int result, WOLFSSL_X509_STORE_CTX* ctx) {
+    (void) ctx;
+
+    if (result) {
+        WOLFSSL_MSG_EX("----- WolfSSL peer verify FAAILED with error %d!-----\n", result);
+    } else {
+        WOLFSSL_MSG("----- WolfSSL peer verify SUCCESS -----\n");
+    }
+    return 0;
+}
 		
 bool NET_PRES_EncProviderStreamClientInit0(NET_PRES_TransportObject * transObject)
 {
@@ -127,7 +137,7 @@ bool NET_PRES_EncProviderStreamClientInit0(NET_PRES_TransportObject * transObjec
     {
         return false;
     }
-	wolfSSL_CTX_set_verify(net_pres_wolfSSLInfoStreamClient0.context, WOLFSSL_VERIFY_PEER, 0);
+	wolfSSL_CTX_set_verify(net_pres_wolfSSLInfoStreamClient0.context, WOLFSSL_VERIFY_PEER, ssl_verify_cb);
 	
     wolfSSL_SetIORecv(net_pres_wolfSSLInfoStreamClient0.context, (CallbackIORecv)&NET_PRES_EncGlue_StreamClientReceiveCb0);
     wolfSSL_SetIOSend(net_pres_wolfSSLInfoStreamClient0.context, (CallbackIOSend)&NET_PRES_EncGlue_StreamClientSendCb0);

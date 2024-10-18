@@ -65,6 +65,8 @@ extern "C" {
 
 #endif
 // DOM-IGNORE-END
+    
+#define DEBUG_WOLFSSL
 
 // *****************************************************************************
 // *****************************************************************************
@@ -135,7 +137,7 @@ extern "C" {
 
 
 #define SYS_DEBUG_ENABLE
-#define SYS_DEBUG_GLOBAL_ERROR_LEVEL       SYS_ERROR_WARNING
+#define SYS_DEBUG_GLOBAL_ERROR_LEVEL       SYS_ERROR_INFO
 #define SYS_DEBUG_BUFFER_DMA_READY
 #define SYS_DEBUG_USE_CONSOLE
 
@@ -196,7 +198,7 @@ extern "C" {
 #pragma region name="wlan_mem" origin=0xa0040000 size=0x10000
 #define PIC32MZW_RSR_PKT_NUM    (0x10000 / sizeof(WDRV_PIC32MZW_PKT_LIST_NODE))
 
-#define WDRV_PIC32MZW1_DEVICE_USE_SYS_DEBUG
+//#define WDRV_PIC32MZW1_DEVICE_USE_SYS_DEBUG
 #define WDRV_PIC32MZW_WPA3_PERSONAL_SUPPORT
 #define WDRV_PIC32MZW_BA414E_SUPPORT
 #define WDRV_PIC32MZW_BIGINTSW_SUPPORT
