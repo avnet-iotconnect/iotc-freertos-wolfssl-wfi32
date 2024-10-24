@@ -27,6 +27,8 @@
 #include "cJSON.h"
 #include "iot_network_wolfssl.h"
 
+#include "sensors.h"
+
 // *****************************************************************************
 
 char g_Cloud_Endpoint[100];
@@ -395,6 +397,8 @@ void APP_AWS_Tasks ( void )
                     iotcl_telemetry_set_string(msg, "LED_Blue", app_deviceData.LED_Blue ? "On" : "Off");
                     iotcl_telemetry_set_string(msg, "LED_Green", app_deviceData.LED_Green ? "On" : "Off");
                     iotcl_telemetry_set_string(msg, "LED_Red",  app_deviceData.LED_Red ? "On" : "Off");
+                    add_sensor_data_to_telemetry(msg);
+                    
                     iotcl_mqtt_send_telemetry(msg, true);
                     iotcl_telemetry_destroy(msg); 
     

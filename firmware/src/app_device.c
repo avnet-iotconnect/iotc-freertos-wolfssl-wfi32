@@ -31,6 +31,8 @@
 #include "definitions.h" 
 #include <math.h>
 
+#include "sensors.h"
+
 // *****************************************************************************
 // *****************************************************************************
 // Section: Global Data Definitions
@@ -191,11 +193,12 @@ static void i2cReadRegComp(uint8_t addr, uint8_t reg){
                 if ((upperByte & 0x10) == 0x10)
                 {         // Ta < 0 degC
                     upperByte = upperByte & 0x0F;       // Clear sign bit
-                    app_deviceData.mcp9808.temperature = ((upperByte * 16) + lowerByte/16);          
+                    app_deviceData.mcp9808.temperature = ((upperByte * 16) + lowerByte/16);
                 }
                 else
                 {
-                    app_deviceData.mcp9808.temperature = 256 - ((upperByte * 16) + lowerByte/16);
+                    app_deviceData.mcp9808.temperature = ((upperByte * 16) + lowerByte/16);
+                    //app_deviceData.mcp9808.temperature = 256 - ((upperByte * 16) + lowerByte/16);
                 }
                 SYS_CONSOLE_PRINT("MCP9808 Temperature %d (C)\r\n", app_deviceData.mcp9808.temperature);                
             }
@@ -348,7 +351,101 @@ int16_t APP_readTemp(void)
 uint32_t APP_readLight(void)
 {
     return app_deviceData.opt3001.light;
-}   
+}
+
+
+/* i2c functions for click sensors */
+void APP_SENSORS_writeByte(uint8_t addr, uint8_t val)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)val;
+    
+    DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)app_deviceData.i2c.txBuffer2, 1, &app_deviceData.i2c.transferHandle);
+    
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+    }
+}
+
+void APP_SENSORS_write(uint8_t addr, uint8_t *buffer, uint8_t size)
+{
+    memcpy(app_deviceData.i2c.txBuffer2, buffer, size);
+    
+    DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)app_deviceData.i2c.txBuffer2, size, &app_deviceData.i2c.transferHandle);
+    
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+    }
+}
+
+void APP_SENSORS_justRead(uint8_t addr, uint8_t size)
+{
+    DRV_I2C_ReadTransferAdd(app_deviceData.i2c.i2cHandle, 
+            addr, (void*)&app_deviceData.i2c.rxBuffBytes, size, &app_deviceData.i2c.transferHandle);
+    
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C read error! \r\n");
+    }
+}
+
+void APP_SENSORS_writeReadBytes(uint8_t addr, uint16_t reg, uint8_t size)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)reg;
+    
+    DRV_I2C_WriteReadTransferAdd(app_deviceData.i2c.i2cHandle, 
+            addr, 
+            (void*)app_deviceData.i2c.txBuffer2, 1, 
+            (void*)&app_deviceData.i2c.rxBuffBytes, size, &app_deviceData.i2c.transferHandle);
+    
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write read error! \r\n");
+    }
+}
+
+void APP_SENSORS_writeReadWords(uint8_t addr, uint16_t reg, uint8_t size)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)reg;
+    
+    DRV_I2C_WriteReadTransferAdd(app_deviceData.i2c.i2cHandle, 
+            addr, 
+            (void*)app_deviceData.i2c.txBuffer2, 1, 
+            (void*)&app_deviceData.i2c.rxBuffWords, size, &app_deviceData.i2c.transferHandle);
+    
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write read error! \r\n");
+    }
+}
+
+void APP_SENSORS_writeWord_MSB_b4_LSB(uint8_t addr, uint16_t reg, uint16_t val)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)reg;
+    app_deviceData.i2c.txBuffer2[1] = (uint8_t)(val >> 8);
+    app_deviceData.i2c.txBuffer2[2] = (uint8_t)(val & 0x00FF);
+    
+    DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)app_deviceData.i2c.txBuffer2, 3, &app_deviceData.i2c.transferHandle);
+    
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+    }
+}
+
+void APP_SENSORS_writeWord_LSB_b4_MSB(uint8_t addr, uint16_t reg, uint16_t val)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)reg;
+    app_deviceData.i2c.txBuffer2[1] = (uint8_t)(val & 0x00FF);
+    app_deviceData.i2c.txBuffer2[2] = (uint8_t)(val >> 8);
+    
+    DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)app_deviceData.i2c.txBuffer2, 3, &app_deviceData.i2c.transferHandle);
+    
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+    }
+}
+
+
 // *****************************************************************************
 // *****************************************************************************
 // Section: Application Initialization and State Machine Functions
@@ -399,14 +496,14 @@ void APP_DEVICE_Initialize ( void )
  */
 
 void APP_DEVICE_Tasks ( void )
-{
-
+{    
     /* Check the application's current state. */
     switch ( app_deviceData.state )
     {
         /* Application's initial state. */
         case APP_DEVICE_STATE_INIT:
         {
+            sensorsInit();
             /* Open I2C driver client */
             app_deviceData.i2c.i2cHandle = DRV_I2C_Open( DRV_I2C_INDEX_0, DRV_IO_INTENT_READWRITE );
             if (app_deviceData.i2c.i2cHandle == DRV_HANDLE_INVALID)
@@ -418,10 +515,13 @@ void APP_DEVICE_Tasks ( void )
                 DRV_I2C_TransferEventHandlerSet(app_deviceData.i2c.i2cHandle, i2cTransferCallback, 0);
                 app_deviceData.state = APP_DEVICE_STATE_MONITOR_SWITCH1;
             }
+            /* check which click sensors are connected*/
+            check_click_sensors();
             
             /* Setup RTCC */
             setup_rtcc();   
-            app_deviceData.state = APP_DEVICE_STATE_IDLE;
+            app_deviceData.state = APP_DEVICE_STATE_SENSORS_CHECK;
+            
             break;
 
         }
@@ -527,6 +627,9 @@ void APP_DEVICE_Tasks ( void )
                 app_deviceData.readSensors = false;
                 app_deviceData.state = APP_DEVICE_STATE_SENSORS_READ_TEMP;
             }
+            SYS_CONSOLE_PRINT( "Reading Click sensors... \r\n");
+            read_click_sensors();
+            vTaskDelay( 1000 / portTICK_PERIOD_MS );
             break;
         } 
 
@@ -538,6 +641,7 @@ void APP_DEVICE_Tasks ( void )
                 app_deviceData.state = APP_DEVICE_STATE_SENSORS_WAIT_TURN_ON_MCP9808;
             else
                 app_deviceData.state = APP_DEVICE_STATE_SENSORS_TURN_ON_OPT3001;
+            
             break;
         }
         
