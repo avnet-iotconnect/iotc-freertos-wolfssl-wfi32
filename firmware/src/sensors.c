@@ -123,6 +123,12 @@ void check_click_sensors (void) {
 }
 
 void read_click_sensors (void) {
+    
+        //Air Quality 7 Click Reading
+    if (click_board_detection.air7 == true) {
+        AIRQUALITY7_readData(&air7_data);
+    }
+    
         //Altitude 2 Click Reading
     if (click_board_detection.alt2 == true) {
         //alt2_data_struct alt2_data;
@@ -238,6 +244,22 @@ void read_click_sensors (void) {
 }
 
 void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
+    
+        //Air Quality 7 Click Reading
+    if (click_board_detection.air7 == true) {
+        
+        if (air7_data.tvoc != 0 && air7_data.co2 != 0) {
+            //Report status and data from readData function output
+            iotcl_telemetry_set_string(msg, "AIR7_Status", "READY");
+            iotcl_telemetry_set_number(msg, "AIR7_tVOC_ppb", air7_data.tvoc);   
+            iotcl_telemetry_set_number(msg, "AIR7_CO2_ppm", air7_data.co2);
+        } else {
+            //Report status and zeros for data
+            iotcl_telemetry_set_string(msg, "AIR7_Status", "WARMING_UP");
+            iotcl_telemetry_set_number(msg, "AIR7_tVOC_ppb", 0);   
+            iotcl_telemetry_set_number(msg, "AIR7_CO2_ppm", 0);
+        }
+    }
         //Altitude 2 Click Reading
     if (click_board_detection.alt2 == true) {
         //alt2_data_struct alt2_data;
