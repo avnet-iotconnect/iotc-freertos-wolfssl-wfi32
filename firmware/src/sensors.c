@@ -250,14 +250,14 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         
         if (air7_data.tvoc != 0 && air7_data.co2 != 0) {
             //Report status and data from readData function output
-            iotcl_telemetry_set_string(msg, "AIR7_Status", "READY");
-            iotcl_telemetry_set_number(msg, "AIR7_tVOC_ppb", air7_data.tvoc);   
-            iotcl_telemetry_set_number(msg, "AIR7_CO2_ppm", air7_data.co2);
+            iotcl_telemetry_set_string(msg, "Amp_AIR7_Status", "READY");
+            iotcl_telemetry_set_number(msg, "Amp_AIR7_tVOC_ppb", air7_data.tvoc);   
+            iotcl_telemetry_set_number(msg, "Amp_AIR7_CO2_ppm", air7_data.co2);
         } else {
             //Report status and zeros for data
-            iotcl_telemetry_set_string(msg, "AIR7_Status", "WARMING_UP");
-            iotcl_telemetry_set_number(msg, "AIR7_tVOC_ppb", 0);   
-            iotcl_telemetry_set_number(msg, "AIR7_CO2_ppm", 0);
+            iotcl_telemetry_set_string(msg, "Amp_AIR7_Status", "WARMING_UP");
+            iotcl_telemetry_set_number(msg, "Amp_AIR7_tVOC_ppb", 0);   
+            iotcl_telemetry_set_number(msg, "Amp_AIR7_CO2_ppm", 0);
         }
     }
         //Altitude 2 Click Reading
@@ -268,9 +268,9 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         //Take measurements from sensor using the calibration values as multipliers
         //ALTITUDE2_readData(&alt2_data);
         //Report data pulled from readData function output
-        iotcl_telemetry_set_number(msg, "ALT2_Temp_DegC", alt2_data.temperature);
-        iotcl_telemetry_set_number(msg, "ALT2_Pressure_mBar", alt2_data.pressure);
-        iotcl_telemetry_set_number(msg, "ALT2_Altitude_m", alt2_data.altitude);
+        iotcl_telemetry_set_number(msg, "TE_ALT2_Temp_DegC", alt2_data.temperature);
+        iotcl_telemetry_set_number(msg, "TE_ALT2_Pressure_mBar", alt2_data.pressure);
+        iotcl_telemetry_set_number(msg, "TE_ALT2_Altitude_m", alt2_data.altitude);
     } 
     
     
@@ -279,9 +279,9 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         alt4_data_struct alt4_data;
         //ALTITUDE4_readData(&alt4_data);
         //Report data pulled from readData function output
-        iotcl_telemetry_set_number(msg, "ALT4_Temp_DegC", alt4_data.temperature);
-        iotcl_telemetry_set_number(msg, "ALT4_Pressure_mBar", alt4_data.pressure);   
-        iotcl_telemetry_set_number(msg, "ALT4_Altitude_m", alt4_data.altitude);
+        iotcl_telemetry_set_number(msg, "TE_ALT4_Temp_DegC", alt4_data.temperature);
+        iotcl_telemetry_set_number(msg, "TE_ALT4_Pressure_mBar", alt4_data.pressure);   
+        iotcl_telemetry_set_number(msg, "TE_ALT4_Altitude_m", alt4_data.altitude);
     }
     
     
@@ -293,9 +293,9 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         //Take measurements from sensor using the calibration values as multipliers
         //PHT_readData(&pht_data);
         //Report data pulled from readData function output
-        iotcl_telemetry_set_number(msg, "PHT_Temp_DegC", pht_data.temperature);
-        iotcl_telemetry_set_number(msg, "PHT_Pressure_mBar", pht_data.pressure);  
-        iotcl_telemetry_set_number(msg, "PHT_Humidity_Percent", pht_data.humidity);
+        iotcl_telemetry_set_number(msg, "TE_PHT_Temp_DegC", pht_data.temperature);
+        iotcl_telemetry_set_number(msg, "TE_PHT_Pressure_mBar", pht_data.pressure);  
+        iotcl_telemetry_set_number(msg, "TE_PHT_Humidity_Percent", pht_data.humidity);
     } 
     
     
@@ -306,12 +306,12 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         //If the sensor has been warming up for at least 10 minutes
         if (t6713_data.co2 != 0) {
             //Report status and data from readData function output
-            iotcl_telemetry_set_string(msg, "T6713_Status", "READY");
-            iotcl_telemetry_set_number(msg, "T6713_CO2_ppm", t6713_data.co2);
+            iotcl_telemetry_set_string(msg, "TEL_T6713_Status", "READY");
+            iotcl_telemetry_set_number(msg, "TEL_T6713_CO2_ppm", t6713_data.co2);
         } else {
             //Report status and zeros for data
-            iotcl_telemetry_set_string(msg, "T6713_Status", "WARMING_UP");
-            iotcl_telemetry_set_number(msg, "T6713_CO2_ppm", 0);
+            iotcl_telemetry_set_string(msg, "TEL_T6713_Status", "WARMING_UP");
+            iotcl_telemetry_set_number(msg, "TEL_T6713_CO2_ppm", 0);
         }
     }
 
@@ -323,14 +323,14 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         //If the sensor has been warming up for at least 2 minutes
         if (t9602_data.humidity != 0 && t9602_data.temperature != 0) {
             //Report status and data from readData function output
-            iotcl_telemetry_set_string(msg, "T9602_Status", "READY");
-            iotcl_telemetry_set_number(msg, "T9602_Humidity_Percent", t9602_data.humidity);
-            iotcl_telemetry_set_number(msg, "T9602_Temp_DegC", t9602_data.temperature);
+            iotcl_telemetry_set_string(msg, "TEL_T9602_Status", "READY");
+            iotcl_telemetry_set_number(msg, "TEL_T9602_Humidity_Percent", t9602_data.humidity);
+            iotcl_telemetry_set_number(msg, "TEL_T9602_Temp_DegC", t9602_data.temperature);
         } else {
             //Report status and zeros for data
-            iotcl_telemetry_set_string(msg, "T9602_Status", "WARMING_UP");
-            iotcl_telemetry_set_number(msg, "T9602_Humidity_Percent", 0);
-            iotcl_telemetry_set_number(msg, "T9602_Temp_DegC", 0);
+            iotcl_telemetry_set_string(msg, "TEL_T9602_Status", "WARMING_UP");
+            iotcl_telemetry_set_number(msg, "TEL_T9602_Humidity_Percent", 0);
+            iotcl_telemetry_set_number(msg, "TEL_T9602_Temp_DegC", 0);
         }
     }
     
@@ -342,8 +342,8 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         //TEMPHUM14_getTemperatureHumidity (TEMPHUM14_I2C_SLAVE_ADDR_GND, &temphum14_data);
 
         //Report data from readData function output
-        iotcl_telemetry_set_number(msg, "TH14_Humidity_Percent", temphum14_data.humidity);
-        iotcl_telemetry_set_number(msg, "TH14_Temp_DegC", temphum14_data.temperature);
+        iotcl_telemetry_set_number(msg, "TE_TH14_Humidity_Percent", temphum14_data.humidity);
+        iotcl_telemetry_set_number(msg, "TE_TH14_Temp_DegC", temphum14_data.temperature);
     }
     
     
@@ -354,8 +354,8 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         //{
             //ULTRALOWPRESS_getData(&ulp_data);
             //Report data from getData function output
-            iotcl_telemetry_set_number(msg, "ULP_Temp_DegC", ulp_data.temperature);
-            iotcl_telemetry_set_number(msg, "ULP_Pressure_Pa", ulp_data.pressure);
+            iotcl_telemetry_set_number(msg, "TE_ULP_Temp_DegC", ulp_data.temperature);
+            iotcl_telemetry_set_number(msg, "TE_ULP_Pressure_Pa", ulp_data.pressure);
         //}
     }
     
@@ -365,7 +365,7 @@ void add_sensor_data_to_telemetry(IotclMessageHandle msg) {
         //vav_data_struct vav_data;
         //VAVPRESS_getSensorReadings(&vav_data);
         //Report data from getSensorReadings function output
-        iotcl_telemetry_set_number(msg, "VAV_Pressure_Pa", vav_data.pressure);
-        iotcl_telemetry_set_number(msg, "VAV_Temp_DegC", vav_data.temperature);
+        iotcl_telemetry_set_number(msg, "TE_VAV_Pressure_Pa", vav_data.pressure);
+        iotcl_telemetry_set_number(msg, "TE_VAV_Temp_DegC", vav_data.temperature);
     }
 }
