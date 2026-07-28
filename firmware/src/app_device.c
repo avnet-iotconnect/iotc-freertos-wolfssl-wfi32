@@ -200,7 +200,7 @@ static void i2cReadRegComp(uint8_t addr, uint8_t reg){
                     app_deviceData.mcp9808.temperature = ((upperByte * 16) + lowerByte/16);
                     //app_deviceData.mcp9808.temperature = 256 - ((upperByte * 16) + lowerByte/16);
                 }
-                SYS_CONSOLE_PRINT("MCP9808 Temperature %d (C)\r\n", app_deviceData.mcp9808.temperature);                
+                //SYS_CONSOLE_PRINT("MCP9808 Temperature %d (C)\r\n", app_deviceData.mcp9808.temperature);                
             }
             else if (reg == MCP9808_REG_DEVICE_ID){
                 app_deviceData.mcp9808.deviceID = app_deviceData.i2c.rxBuffer;
@@ -214,7 +214,7 @@ static void i2cReadRegComp(uint8_t addr, uint8_t reg){
                 uint16_t m = app_deviceData.i2c.rxBuffer & 0x0FFF;
                 uint16_t e = (app_deviceData.i2c.rxBuffer & 0xF000) >> 12;
                 app_deviceData.opt3001.light = (m*pow(2,e))/100;
-                SYS_CONSOLE_PRINT( "OPT3001 Light %d (lux)\r\n", app_deviceData.opt3001.light); 
+                //SYS_CONSOLE_PRINT( "OPT3001 Light %d (lux)\r\n", app_deviceData.opt3001.light); 
             }
             else if (reg == OPT3001_REG_DEVICE_ID){
                 app_deviceData.opt3001.deviceID = app_deviceData.i2c.rxBuffer;
@@ -495,8 +495,77 @@ void APP_DEVICE_Initialize ( void )
     See prototype in app_device.h.
  */
 
+/* Sample both user buttons and drive the LEDs.
+ *
+ * This runs on every APP_DEVICE_Tasks() tick rather than from the
+ * APP_DEVICE_STATE_MONITOR_SWITCH1/2 and APP_DEVICE_STATE_SET_LED states.
+ * Those states sit on a branch of the sensor state machine that the normal
+ * loop no longer takes (APP_DEVICE_STATE_SENSORS_WAIT_READ_LIGHT returns to
+ * APP_DEVICE_STATE_SENSORS_CHECK), so the buttons were never sampled and the
+ * LEDs never followed the LED_Red/Green/Blue flags.  Sampling here also keeps
+ * the button response independent of the click-sensor cadence, which holds
+ * the state machine for a second at a time in APP_DEVICE_STATE_SENSORS_CHECK.
+ */
+static void monitorSwitchesAndLeds ( void )
+{
+    static uint8_t switch1PressedCnt = 0;
+    static uint8_t switch2PressedCnt = 0;
+
+    /* SWITCH 1 */
+    if (SWITCH1_Get() == SWITCH1_STATE_PRESSED)
+    {
+        switch1PressedCnt++;
+        if (switch1PressedCnt == 2)
+        {
+            app_deviceData.switch1Status = true;
+            app_deviceData.switch1Cnt++;
+            SYS_CONSOLE_PRINT("[app_device] SW1 pressed (%d)\r\n", app_deviceData.switch1Cnt);
+        }
+        else if (switch1PressedCnt == 100)
+        {
+            app_deviceData.switch1Cnt = 0;
+            SYS_CONSOLE_PRINT("[app_device] SW1 long press, count reset (%d)\r\n", app_deviceData.switch1Cnt);
+        }
+    }
+    else
+    {
+        switch1PressedCnt = 0;
+        app_deviceData.switch1Status = false;
+    }
+
+    /* SWITCH 2 */
+    if (SWITCH2_Get() == SWITCH2_STATE_PRESSED)
+    {
+        switch2PressedCnt++;
+        if (switch2PressedCnt == 2)
+        {
+            app_deviceData.switch2Status = true;
+            app_deviceData.switch2Cnt++;
+            SYS_CONSOLE_PRINT("[app_device] SW2 pressed (%d)\r\n", app_deviceData.switch2Cnt);
+        }
+        else if (switch2PressedCnt == 100)
+        {
+            app_deviceData.switch2Cnt = 0;
+            SYS_CONSOLE_PRINT("[app_device] SW2 long press, count reset (%d)\r\n", app_deviceData.switch2Cnt);
+        }
+    }
+    else
+    {
+        switch2PressedCnt = 0;
+        app_deviceData.switch2Status = false;
+    }
+
+    /* LEDs, so that cloud commands are reflected on the board */
+    if (app_deviceData.LED_Red)   {LED_RED_On();}   else {LED_RED_Off();}
+    if (app_deviceData.LED_Green) {LED_GREEN_On();} else {LED_GREEN_Off();}
+    if (app_deviceData.LED_Blue)  {LED_BLUE_On();}  else {LED_BLUE_Off();}
+}
+
 void APP_DEVICE_Tasks ( void )
-{    
+{
+    /* Sampled every tick, independent of the sensor state machine below. */
+    monitorSwitchesAndLeds();
+
     /* Check the application's current state. */
     switch ( app_deviceData.state )
     {
@@ -526,73 +595,29 @@ void APP_DEVICE_Tasks ( void )
 
         }
         
+        /* The buttons and the LEDs are now serviced by
+         * monitorSwitchesAndLeds() on every APP_DEVICE_Tasks() tick, so these
+         * states only keep the chain intact for the error paths that still
+         * jump here.  Doing the work in both places would double-count a
+         * press. */
         case APP_DEVICE_STATE_MONITOR_SWITCH1:
         {
-            static uint8_t switch1PressedCnt = 0;
-            if (SWITCH1_Get() == SWITCH1_STATE_PRESSED)
-            {
-                switch1PressedCnt++ ;
-                if (switch1PressedCnt == 2)
-                {
-                    app_deviceData.switch1Status = true;
-                    app_deviceData.switch1Cnt++;
-                    SYS_CONSOLE_PRINT("[app_device] SW1 pressed (%d)\r\n", app_deviceData.switch1Cnt);
-                }
-                else if (switch1PressedCnt == 100)
-                {
-                    app_deviceData.switch1Cnt = 0;
-                    SYS_CONSOLE_PRINT("[app_device] SW1 pressed (%d)\r\n", app_deviceData.switch1Cnt);
-                
-                }
-            }
-            else
-            {
-                switch1PressedCnt = 0;
-                app_deviceData.switch1Status = false;
-            }
- 
             app_deviceData.state = APP_DEVICE_STATE_MONITOR_SWITCH2;
             break;
         }
-        
+
         case APP_DEVICE_STATE_MONITOR_SWITCH2:
         {
-            static uint8_t switch2PressedCnt = 0;
-            if (SWITCH2_Get() == SWITCH2_STATE_PRESSED)
-            {
-                switch2PressedCnt++ ;
-                if (switch2PressedCnt == 2)
-                {
-                    app_deviceData.switch2Status = true;
-                    app_deviceData.switch2Cnt++;
-                    SYS_CONSOLE_PRINT("[app_device] SW2 pressed (%d)\r\n", app_deviceData.switch2Cnt);
-                
-                }
-                else if (switch2PressedCnt == 100)
-                {
-                    app_deviceData.switch2Cnt = 0;
-                    SYS_CONSOLE_PRINT("[app_device] SW2 pressed (%d)\r\n", app_deviceData.switch2Cnt);
-                }
-            }
-            else
-            {
-                switch2PressedCnt = 0;
-                app_deviceData.switch2Status = false;
-            }
- 
             app_deviceData.state = APP_DEVICE_STATE_SET_LED;
             break;
         }
-        
+
         case APP_DEVICE_STATE_SET_LED:
         {
-            if (app_deviceData.LED_Red) {LED_RED_On();} else {LED_RED_Off();}
-            if (app_deviceData.LED_Green) {LED_GREEN_On();} else {LED_GREEN_Off();}
-            if (app_deviceData.LED_Blue) {LED_BLUE_On();} else {LED_BLUE_Off();          }
             app_deviceData.state = APP_DEVICE_STATE_SENSORS_CHECK;
             break;
-        }        
-        
+        }
+
         case APP_DEVICE_STATE_SENSORS_CHECK:
         {
             /* Read RTCC */
@@ -627,7 +652,7 @@ void APP_DEVICE_Tasks ( void )
                 app_deviceData.readSensors = false;
                 app_deviceData.state = APP_DEVICE_STATE_SENSORS_READ_TEMP;
             }
-            SYS_CONSOLE_PRINT( "Reading Click sensors... \r\n");
+            //SYS_CONSOLE_PRINT( "Reading Click sensors... \r\n");
             read_click_sensors();
             vTaskDelay( 1000 / portTICK_PERIOD_MS );
             break;

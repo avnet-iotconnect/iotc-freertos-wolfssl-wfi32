@@ -26,6 +26,7 @@
 #include "app_aws.h"
 #include "app_commands.h"
 #include "app_common.h"
+#include "app_iotconnect.h"
 #include "tcpip/tcpip_manager.h"
 
 // *****************************************************************************
@@ -275,6 +276,9 @@ void APP_Initialize ( void )
     APP_InitializeWifiProv();
     APP_InitializeWlan();
     APP_Commands_Init();
+    /* State of the IoTConnect task; the task itself is created in tasks.c,
+     * where it replaces APP_AWS_Tasks. */
+    APP_IOTC_Initialize();
 }
 
 void APP_InitializeWlan ( void )
