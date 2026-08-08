@@ -43,18 +43,14 @@ sensors plus a range of MikroElektronika Click boards that are auto-detected at 
 2. Connect the board to your PC with the Micro-B USB cable. Two serial ports and a USB drive
    (`WFI32-IOT`, later `IOTCONNECT`) will enumerate.
 
-> **⚠ Power budget — read this before stacking multiple Click boards.**
+> **⚠ Power budget when stacking multiple Click boards.**
 > The board's Debug USB port is limited to **500 mA total** (see the
 > [board user guide](https://ww1.microchip.com/downloads/aemDocuments/documents/WSG/ProductDocuments/UserGuides/EV36W50A-WFI32-IoT-Board-Users-Guide-DS50003262.pdf),
-> §3.1), shared between the MCU, the radio, the debugger, and everything on the mikroBUS socket.
-> Wi-Fi transmit bursts alone peak near 300 mA. With several Click boards attached (e.g. four on a
-> Shuttle), the supply can sag during transmit and **Wi-Fi will associate but fail the WPA2
-> handshake over and over** (the AP retries EAPOL M1 and then deauthenticates, reason 0x02).
-> If you see repeated `WiFi connection failed` while Click boards are attached:
-> * use a high-current USB port or powered hub,
-> * and/or connect a 4.2 V Li-Po battery to J101 to supplement the budget,
-> * and/or reduce the number of attached Click boards,
-> * and keep the Click stack physically clear of the PCB antenna at the top of the board.
+> §3.1), shared between the MCU, the radio, the debugger, and everything on the mikroBUS socket,
+> and Wi-Fi transmit bursts alone peak near 300 mA. When attaching several Click boards (e.g. four
+> on a Shuttle), use a high-current USB port or powered hub — or connect a 4.2 V Li-Po battery to
+> J101 to supplement the budget — and keep the Click stack physically clear of the PCB antenna at
+> the top of the board.
 
 ## 3. Supported Click Boards
 
@@ -178,9 +174,17 @@ Import via **Dashboards → Create Dashboard → Import**, then bind the importe
 
 ## 9. Troubleshooting
 
-* **`WiFi connection failed` repeatedly, especially with several Clicks attached** — power budget;
-  see the warning in [Hardware Setup](#2-hardware-setup). Confirmed signature on the debug console:
-  association succeeds, then EAPOL M1 retries followed by `deauth (reason 0x02)`.
+* **`WiFi connection failed` repeatedly** — the firmware prints a scan report before the first
+  attempt (`WiFi diag: ...`) listing every AP broadcasting your SSID with BSSID, channel, RSSI and
+  security flags, and counts each failed attempt. Reading it:
+  * `SAE`/`MFPREQ` flags → the router requires WPA3 / protected management frames; adjust the
+    router settings or the auth mode.
+  * `SSID NOT VISIBLE` → wrong band (the module is 2.4 GHz only), hidden SSID, or out of range.
+  * Flags normal (`PSK`), RSSI healthy, but the debug console (second serial port) shows
+    authentication and association succeeding followed by repeated `EAPOL KEY (M1)` retries and
+    `deauth (reason 0x02)` → the AP is rejecting the WPA2 handshake because of stale client state
+    on the router — **reboot the router**. This exact case was hit and verified during
+    development; it is not a board, credential, signal, or power problem.
 * **Board silent after programming** — power-cycle it. The board reliably needs a true power-on reset
   after any debugger-driven program or reset.
 * **A Click is not detected** — check the boot scan on the application console. If `0x18`/`0x44` appear

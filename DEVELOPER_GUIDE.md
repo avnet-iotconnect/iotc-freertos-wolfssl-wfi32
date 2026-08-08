@@ -158,13 +158,23 @@ README table.
 
 ## 9. Hardware Constraints
 
-**Power budget (most important).** The Debug USB port supplies at most **500 mA** for the whole board
-(user guide §3.1). Wi-Fi TX bursts peak near 300 mA. A Shuttle with multiple Clicks can push the total
-over budget: the observed failure mode is that 802.11 auth and association succeed but the WPA2
-handshake fails repeatedly — the AP never accepts EAPOL M2 (corrupted by supply sag during TX),
-retries M1 several times, then deauthenticates with reason 0x02, and the driver logs `tx tmo` /
-internal errors. Remedies: high-current USB source, Li-Po battery on J101, fewer Clicks, and keep the
+**Power budget.** The Debug USB port supplies at most **500 mA** for the whole board (user guide
+§3.1), shared with everything on the mikroBUS socket, and Wi-Fi TX bursts peak near 300 mA. With
+several Clicks attached, use a high-current USB source or a Li-Po battery on J101, and keep the
 Click stack away from the PCB antenna at the top of the board.
+
+**Wi-Fi association failures.** A persistent failure observed during development: 802.11
+authentication and association succeed, then the AP ignores the supplicant's EAPOL M2, retransmits
+M1 several times, and deauthenticates with reason 0x02 — in an endless loop, with the driver
+logging `tx tmo` / internal errors under the churn. Board-side causes were eliminated one at a
+time: credentials (byte-verified on the MSD), firmware (unchanged WPA path that had connected
+before), Click power draw (failed identically with none attached), signal (−16 dBm), and security
+posture (scan showed plain WPA2-PSK, no WPA3/PMF). The cause was transient client state on the AP:
+with nothing changed on the board, the same setup later connected on the first attempt. When this
+signature appears, **reboot the router**. The boot scan diagnostic in `app.c` (BSSID / channel /
+RSSI / security-capability report plus a connect-failure counter) was added to make these cases
+quickly distinguishable — in particular, `SAE`/`MFPREQ` flags directly reveal a WPA3/PMF
+requirement that would otherwise produce an identical-looking failure.
 
 **Radio power save.** The original demo enabled `POWERSAVE_WSM_MODE` on connect, which dozes with a
 listen interval of 10 beacons (~1 s). That adds up to a second of latency to every inbound packet, so
@@ -210,6 +220,7 @@ Relative to the original `click-sensors-support` branch:
 | Radio power save changed WSM → RUN mode | `app.c` | ~1 s inbound latency; TLS handshakes and QoS-1 publishes timed out; rate decayed to 6 Mbps |
 | MQTT publish timeout raised 5 s → 30 s (beyond the QoS-1 retry schedule) | `iotconnect.c` | Publishes abandoned while retries were still in flight |
 | Publish failures log payload and size | `iotconnect.c` | Failures gave no clue what was being sent |
+| Boot-time Wi-Fi scan report + connect-failure counter | `app.c` | Association failures gave no visibility into AP selection, RSSI, or security requirements |
 | Toolchain retarget XC32 4.60 / DFP 1.10.334, stale project references removed | `configurations.xml` | Project did not load/build with current tools |
 
 Known remaining issue (inherited): Click drivers share one receive buffer, and a failed read can leave
