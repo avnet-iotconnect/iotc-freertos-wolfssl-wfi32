@@ -31,6 +31,58 @@
 
 // *****************************************************************************
 
+/* Wi-Fi connection diagnostics.
+ * s_wifiFailCount counts consecutive connect failures; on the first attempt
+ * and every 4th failure a scan report is printed listing every BSS that
+ * broadcasts our SSID (BSSID, channel, RSSI, security capabilities). This
+ * shows which AP/extender the board is actually seeing and whether the
+ * network's security posture (WPA3/SAE, management frame protection)
+ * matches what the firmware is configured for. */
+static uint32_t s_wifiFailCount = 0;
+static volatile uint8_t s_scanReportState = 0;  /* 0 idle, 1 running, 2 done */
+
+static bool wifiScanNotifyCb(DRV_HANDLE handle, uint8_t index, uint8_t ofTotal, WDRV_PIC32MZW_BSS_INFO *pBSSInfo)
+{
+    static uint8_t matches = 0;
+
+    if ((0U == ofTotal) || (NULL == pBSSInfo)) {
+        APP_PRNT("WiFi diag: scan found no networks at all\r\n");
+        s_scanReportState = 2;
+        return false;
+    }
+
+    if (1U == index) {
+        matches = 0;
+    }
+
+    if ((pBSSInfo->ctx.ssid.length == strlen((const char *)wifi.ssid)) &&
+        (0 == memcmp(pBSSInfo->ctx.ssid.name, wifi.ssid, pBSSInfo->ctx.ssid.length))) {
+        matches++;
+        APP_PRNT("WiFi diag: %s  BSSID %02X:%02X:%02X:%02X:%02X:%02X  ch %u  rssi %d  sec 0x%02X%s%s%s%s%s  recAuth %d\r\n",
+                 wifi.ssid,
+                 pBSSInfo->ctx.bssid.addr[0], pBSSInfo->ctx.bssid.addr[1],
+                 pBSSInfo->ctx.bssid.addr[2], pBSSInfo->ctx.bssid.addr[3],
+                 pBSSInfo->ctx.bssid.addr[4], pBSSInfo->ctx.bssid.addr[5],
+                 (unsigned)pBSSInfo->ctx.channel,
+                 (int)pBSSInfo->rssi,
+                 (unsigned)pBSSInfo->secCapabilities,
+                 (pBSSInfo->secCapabilities & WDRV_PIC32MZW_SEC_BIT_PSK)          ? " PSK"    : "",
+                 (pBSSInfo->secCapabilities & WDRV_PIC32MZW_SEC_BIT_SAE)          ? " SAE"    : "",
+                 (pBSSInfo->secCapabilities & WDRV_PIC32MZW_SEC_BIT_MFP_CAPABLE)  ? " MFPcap" : "",
+                 (pBSSInfo->secCapabilities & WDRV_PIC32MZW_SEC_BIT_MFP_REQUIRED) ? " MFPREQ" : "",
+                 (pBSSInfo->secCapabilities & WDRV_PIC32MZW_SEC_BIT_WPA2OR3)      ? " WPA2/3" : "",
+                 (int)pBSSInfo->authTypeRecommended);
+    }
+
+    if (index >= ofTotal) {
+        APP_PRNT("WiFi diag: scan done, %u BSS total, %u matching '%s'%s\r\n",
+                 (unsigned)ofTotal, (unsigned)matches, wifi.ssid,
+                 (0U == matches) ? " - SSID NOT VISIBLE (band/hidden/range?)" : "");
+        s_scanReportState = 2;
+    }
+    return true;
+}
+
 /* Wi-Fi connect callback */
 static void wifiConnectCallback(DRV_HANDLE handle, WDRV_PIC32MZW_ASSOC_HANDLE assocHandle, WDRV_PIC32MZW_CONN_STATE currentState)
 {
@@ -43,6 +95,7 @@ static void wifiConnectCallback(DRV_HANDLE handle, WDRV_PIC32MZW_ASSOC_HANDLE as
             break;
         case WDRV_PIC32MZW_CONN_STATE_CONNECTED:
             APP_PRNT("WiFi Connected\r\n");
+            s_wifiFailCount = 0;
             appData.assocHandle = assocHandle;
             WIFI_CONNECTED;
 
@@ -59,7 +112,8 @@ static void wifiConnectCallback(DRV_HANDLE handle, WDRV_PIC32MZW_ASSOC_HANDLE as
 
             break;
         case WDRV_PIC32MZW_CONN_STATE_FAILED:
-            APP_PRNT("WiFi connection failed\r\n");
+            s_wifiFailCount++;
+            APP_PRNT("WiFi connection failed (attempt %lu)\r\n", (unsigned long)s_wifiFailCount);
             appData.assocHandle = (uintptr_t)NULL;
             WIFI_DISCONNECTED;
             appData.wlanTaskState = APP_WLAN_RECONNECT;        
@@ -426,6 +480,25 @@ void APP_TaskWlan(void)
         /* Configure and connect */
         case APP_WLAN_CONFIG:
         {
+            /* Diagnostic scan before the first connect attempt only: list the
+             * BSS(s) broadcasting our SSID. Deliberately not repeated during
+             * the retry loop - re-entering the scan path while the driver is
+             * already distressed by handshake failures can wedge it. */
+            if (1U == s_scanReportState) {
+                break;                      /* scan still running */
+            }
+            if ((0U == s_scanReportState) && (0U == s_wifiFailCount)) {
+                if (WDRV_PIC32MZW_STATUS_OK == WDRV_PIC32MZW_BSSFindFirst(
+                        appData.wdrvHandle, WDRV_PIC32MZW_CID_ANY, true, NULL,
+                        wifiScanNotifyCb)) {
+                    APP_PRNT("WiFi diag: scanning for '%s'...\r\n", wifi.ssid);
+                    s_scanReportState = 1;
+                    break;
+                }
+                /* scan refused - fall through and just connect */
+            }
+            s_scanReportState = 0;          /* re-arm for the next round */
+
             APP_PRNT("Connecting to Wi-Fi (%s)\r\n",wifi.ssid);
 //            APP_manageLed(LED_BLUE, LED_F_BLINK, BLINK_MODE_PERIODIC);
             if (APP_WifiConfig((char*)wifi.ssid, 
