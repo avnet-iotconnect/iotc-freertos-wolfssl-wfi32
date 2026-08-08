@@ -65,6 +65,144 @@
             "description": null,
             "unit": null,
             "attributeColor": "#68bc00"
+        },
+        {
+            "name": "Amp_AIR7_Status",
+            "type": "STRING",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "Amp_AIR7_tVOC_ppb",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "ppb"
+        },
+        {
+            "name": "Amp_AIR7_CO2_ppm",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "ppm"
+        },
+        {
+            "name": "TE_ALT2_Temp_DegC",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "degC"
+        },
+        {
+            "name": "TE_ALT2_Pressure_mBar",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "mBar"
+        },
+        {
+            "name": "TE_ALT2_Altitude_m",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "m"
+        },
+        {
+            "name": "TE_ALT4_Temp_DegC",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "degC"
+        },
+        {
+            "name": "TE_ALT4_Pressure_mBar",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "mBar"
+        },
+        {
+            "name": "TE_ALT4_Altitude_m",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "m"
+        },
+        {
+            "name": "TE_PHT_Temp_DegC",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "degC"
+        },
+        {
+            "name": "TE_PHT_Pressure_mBar",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "mBar"
+        },
+        {
+            "name": "TE_PHT_Humidity_Percent",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "%"
+        },
+        {
+            "name": "TEL_T6713_Status",
+            "type": "STRING",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "TEL_T6713_CO2_ppm",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "ppm"
+        },
+        {
+            "name": "TEL_T9602_Status",
+            "type": "STRING",
+            "description": null,
+            "unit": null
+        },
+        {
+            "name": "TEL_T9602_Humidity_Percent",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "%"
+        },
+        {
+            "name": "TEL_T9602_Temp_DegC",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "degC"
+        },
+        {
+            "name": "TE_TH14_Humidity_Percent",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "%"
+        },
+        {
+            "name": "TE_TH14_Temp_DegC",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "degC"
+        },
+        {
+            "name": "TE_ULP_Temp_DegC",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "degC"
+        },
+        {
+            "name": "TE_ULP_Pressure_Pa",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "Pa"
+        },
+        {
+            "name": "TE_VAV_Pressure_Pa",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "Pa"
+        },
+        {
+            "name": "TE_VAV_Temp_DegC",
+            "type": "DECIMAL",
+            "description": null,
+            "unit": "degC"
         }
     ],
     "commands": [

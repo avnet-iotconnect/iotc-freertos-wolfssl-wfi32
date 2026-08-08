@@ -971,7 +971,7 @@
       </logicalFolder>
       <itemPath>Makefile</itemPath>
       <itemPath>../src/config/aws_sdk_wfi32_iot_freertos/harmony-manifest-success.yml</itemPath>
-      <itemPath>iotc_wfi32_aws_demo.mc3</itemPath>
+      <itemPath>iotc-wfi32-aws-demo.mc3</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -1256,8 +1256,6 @@
                   <itemPath>../src/config/aws_sdk_wfi32_iot_freertos/library/cryptoauthlib/crypto/hashes/sha2_routines.h</itemPath>
                 </logicalFolder>
                 <itemPath>../src/config/aws_sdk_wfi32_iot_freertos/library/cryptoauthlib/crypto/atca_crypto_sw.h</itemPath>
-                <itemPath>../src/config/aws_sdk_wfi32_iot_freertos/library/cryptoauthlib/crypto/atca_crypto_sw_ecdsa.h</itemPath>
-                <itemPath>../src/config/aws_sdk_wfi32_iot_freertos/library/cryptoauthlib/crypto/atca_crypto_sw_rand.h</itemPath>
                 <itemPath>../src/config/aws_sdk_wfi32_iot_freertos/library/cryptoauthlib/crypto/atca_crypto_sw_sha1.c</itemPath>
                 <itemPath>../src/config/aws_sdk_wfi32_iot_freertos/library/cryptoauthlib/crypto/atca_crypto_sw_sha1.h</itemPath>
                 <itemPath>../src/config/aws_sdk_wfi32_iot_freertos/library/cryptoauthlib/crypto/atca_crypto_sw_sha2.c</itemPath>
@@ -1653,11 +1651,11 @@
         <targetPluginBoard></targetPluginBoard>
         <platformTool>pkob4hybrid</platformTool>
         <languageToolchain>XC32</languageToolchain>
-        <languageToolchainVersion>4.45</languageToolchainVersion>
+        <languageToolchainVersion>4.60</languageToolchainVersion>
         <platform>3</platform>
       </toolsSet>
       <packs>
-        <pack name="PIC32MZ-W_DFP" vendor="Microchip" version="1.6.220"/>
+        <pack name="PIC32MZ-W_DFP" vendor="Microchip" version="1.10.334"/>
       </packs>
       <ScriptingSettings>
       </ScriptingSettings>
