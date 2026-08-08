@@ -3,9 +3,8 @@
 #ifndef IOT_CONFIG_H_
 #define IOT_CONFIG_H_
 
-#define IOTC_AWS_ENV                "POC"
+#define IOTC_AWS_ENV                "poc"
 #define IOTC_AWS_CPID               "97FF86E8728645E9B89F7B07977E4B15"
-#define IOTC_AWS_BROKER             "a3etk4e19usyja-ats.iot.us-east-1.amazonaws.com"
 #define IOTC_AWS_DISCOVERY_URL      "awsdiscovery.iotconnect.io"
 
 #define IOTC_AWS_DSICOVERY_PATH \
@@ -24,7 +23,7 @@
 
 /* App settings */
 #define IOT_DEMO_SECURED_CONNECTION    ( true )
-#define IOT_DEMO_SERVER                "a3etk4e19usyja-ats.iot.us-east-1.amazonaws.com"
+#define IOT_DEMO_SERVER                ""
 #define IOT_DEMO_PORT                  ( 8883 )
 #define CLIENT_IDENTIFIER_MAX_LENGTH             ( 256 )
 #define KEEP_ALIVE_SECONDS                       ( 60 )

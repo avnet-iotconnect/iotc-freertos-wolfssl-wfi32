@@ -127,6 +127,10 @@ typedef struct
     APP_CTRL_I2C_TRANSFER_STATUS transferStatus;
     uint8_t txBuffer[4];
     uint16_t rxBuffer;
+    
+    uint8_t  txBuffer2[64];
+    uint8_t  rxBuffBytes[64];
+    uint16_t rxBuffWords[64];
 } APP_CTRL_I2C;
 
 /* MCP9808 structure */
@@ -171,7 +175,7 @@ typedef struct
     APP_CTRL_I2C i2c;
     APP_CTRL_MCP9808 mcp9808;
     APP_CTRL_OPT3001 opt3001;
-    APP_CTRL_RTCC rtccData;    
+    APP_CTRL_RTCC rtccData;  
     
 } APP_DEVICE_DATA;
 
@@ -194,6 +198,18 @@ void APP_sensorsOn(void);
 void APP_sensorsOff(void);
 int16_t APP_readTemp(void);
 uint32_t APP_readLight(void);
+
+void APP_SENSORS_writeByte(uint8_t addr, uint8_t val);
+void APP_SENSORS_write(uint8_t addr, uint8_t *buffer, uint8_t size);
+void APP_SENSORS_writeWord_MSB_b4_LSB(uint8_t addr, uint16_t reg, uint16_t val);
+void APP_SENSORS_writeWord_LSB_b4_MSB(uint8_t addr, uint16_t reg, uint16_t val);
+void APP_SENSORS_justRead(uint8_t addr, uint8_t size);
+void APP_SENSORS_writeReadBytes(uint8_t addr, uint16_t reg, uint8_t size);
+void APP_SENSORS_writeReadWords(uint8_t addr, uint16_t reg, uint8_t size);
+bool APP_SENSORS_probe(uint8_t addr);
+bool APP_SENSORS_probeI2C2(uint8_t addr);
+bool APP_SENSORS_writeReadBytesI2C2(uint8_t addr, uint8_t reg, uint8_t *dst, uint8_t size);
+bool APP_SENSORS_cmdThenReadI2C2(uint8_t addr, uint8_t cmd, uint8_t *dst, uint8_t size);
 
 /*******************************************************************************
   Function:

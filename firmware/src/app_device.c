@@ -31,6 +31,8 @@
 #include "definitions.h" 
 #include <math.h>
 
+#include "sensors.h"
+
 // *****************************************************************************
 // *****************************************************************************
 // Section: Global Data Definitions
@@ -191,13 +193,14 @@ static void i2cReadRegComp(uint8_t addr, uint8_t reg){
                 if ((upperByte & 0x10) == 0x10)
                 {         // Ta < 0 degC
                     upperByte = upperByte & 0x0F;       // Clear sign bit
-                    app_deviceData.mcp9808.temperature = ((upperByte * 16) + lowerByte/16);          
+                    app_deviceData.mcp9808.temperature = ((upperByte * 16) + lowerByte/16);
                 }
                 else
                 {
-                    app_deviceData.mcp9808.temperature = 256 - ((upperByte * 16) + lowerByte/16);
+                    app_deviceData.mcp9808.temperature = ((upperByte * 16) + lowerByte/16);
+                    //app_deviceData.mcp9808.temperature = 256 - ((upperByte * 16) + lowerByte/16);
                 }
-                SYS_CONSOLE_PRINT("MCP9808 Temperature %d (C)\r\n", app_deviceData.mcp9808.temperature);                
+                //SYS_CONSOLE_PRINT("MCP9808 Temperature %d (C)\r\n", app_deviceData.mcp9808.temperature);                
             }
             else if (reg == MCP9808_REG_DEVICE_ID){
                 app_deviceData.mcp9808.deviceID = app_deviceData.i2c.rxBuffer;
@@ -211,7 +214,7 @@ static void i2cReadRegComp(uint8_t addr, uint8_t reg){
                 uint16_t m = app_deviceData.i2c.rxBuffer & 0x0FFF;
                 uint16_t e = (app_deviceData.i2c.rxBuffer & 0xF000) >> 12;
                 app_deviceData.opt3001.light = (m*pow(2,e))/100;
-                SYS_CONSOLE_PRINT( "OPT3001 Light %d (lux)\r\n", app_deviceData.opt3001.light); 
+                //SYS_CONSOLE_PRINT( "OPT3001 Light %d (lux)\r\n", app_deviceData.opt3001.light); 
             }
             else if (reg == OPT3001_REG_DEVICE_ID){
                 app_deviceData.opt3001.deviceID = app_deviceData.i2c.rxBuffer;
@@ -348,7 +351,250 @@ int16_t APP_readTemp(void)
 uint32_t APP_readLight(void)
 {
     return app_deviceData.opt3001.light;
-}   
+}
+
+
+/* i2c functions for click sensors */
+
+/* The click drivers parse app_deviceData.i2c.rxBuff* the moment the helpers
+ * below return, but DRV_I2C_*TransferAdd only queues the transfer. Without
+ * waiting for it to finish, every probe reads a buffer that is still empty,
+ * so no click board is ever detected. */
+#define I2C_CLICK_TRANSFER_TIMEOUT_TICKS  200
+
+static bool i2cWaitForTransfer(void)
+{
+    uint16_t ticks;
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        return false;
+    }
+
+    for(ticks = 0; ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS; ticks++) {
+        /* Read through the driver rather than i2c.transferStatus: that field is
+         * written from the transfer callback and is not volatile, so a polling
+         * loop here could be optimised into an infinite one. */
+        switch(DRV_I2C_TransferStatusGet(app_deviceData.i2c.transferHandle)) {
+            case DRV_I2C_TRANSFER_EVENT_COMPLETE:
+                return true;
+            case DRV_I2C_TRANSFER_EVENT_PENDING:
+                vTaskDelay(1);
+                break;
+            default:
+                /* ERROR, HANDLE_INVALID, or HANDLE_EXPIRED - nothing to read */
+                return false;
+        }
+    }
+
+    return false;
+}
+
+/* Single-byte read used only to see which addresses acknowledge, so we can tell
+ * "click is on another bus / unpowered" apart from "driver logic is wrong". */
+bool APP_SENSORS_probe(uint8_t addr)
+{
+    DRV_I2C_ReadTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)&app_deviceData.i2c.rxBuffBytes, 1, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        return false;
+    }
+    return i2cWaitForTransfer();
+}
+
+/* Same probe against I2C2, which is initialised but not owned by DRV_I2C.
+ * A transfer that never completes tells us nothing, so it must report "absent"
+ * rather than falling through to ErrorGet() - reading the error of an unfinished
+ * transfer returns I2C_ERROR_NONE and makes every address look like a device. */
+bool APP_SENSORS_probeI2C2(uint8_t addr)
+{
+    uint8_t scratch = 0;
+    uint16_t ticks;
+
+    (void)I2C2_ErrorGet();      /* discard any error left by the previous probe */
+
+    if(false == I2C2_Read(addr, &scratch, 1)) {
+        return false;
+    }
+
+    for(ticks = 0; ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS; ticks++) {
+        if(false == I2C2_IsBusy()) {
+            return (I2C_ERROR_NONE == I2C2_ErrorGet());
+        }
+        vTaskDelay(1);
+    }
+
+    /* Still busy: abort so a half-finished transaction cannot poison the next
+     * probe, and report nothing found. */
+    I2C2_TransferAbort();
+    return false;
+}
+
+/* Real register read over I2C2, so a click can be confirmed by the data it
+ * returns rather than by a bare address ACK. Back-to-back address probes on
+ * this bus produce periodic false positives; an actual payload does not. */
+bool APP_SENSORS_writeReadBytesI2C2(uint8_t addr, uint8_t reg, uint8_t *dst, uint8_t size)
+{
+    uint16_t ticks;
+    uint8_t cmd = reg;
+
+    (void)I2C2_ErrorGet();
+
+    if(false == I2C2_WriteRead(addr, &cmd, 1, dst, size)) {
+        return false;
+    }
+
+    for(ticks = 0; ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS; ticks++) {
+        if(false == I2C2_IsBusy()) {
+            return (I2C_ERROR_NONE == I2C2_ErrorGet());
+        }
+        vTaskDelay(1);
+    }
+
+    I2C2_TransferAbort();
+    return false;
+}
+
+/* Separate command write then delayed read on I2C2. A repeated-start WriteRead
+ * gives a sensor no time to prepare its answer, so a failure there does not
+ * prove absence; this two-step form does. */
+bool APP_SENSORS_cmdThenReadI2C2(uint8_t addr, uint8_t cmd, uint8_t *dst, uint8_t size)
+{
+    uint16_t ticks;
+    uint8_t cmdByte = cmd;
+
+    (void)I2C2_ErrorGet();
+    if(false == I2C2_Write(addr, &cmdByte, 1)) {
+        return false;
+    }
+    for(ticks = 0; (ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS) && I2C2_IsBusy(); ticks++) {
+        vTaskDelay(1);
+    }
+    if(I2C_ERROR_NONE != I2C2_ErrorGet()) {
+        return false;
+    }
+
+    vTaskDelay(5);      /* let the device latch its response */
+
+    if(false == I2C2_Read(addr, dst, size)) {
+        return false;
+    }
+    for(ticks = 0; ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS; ticks++) {
+        if(false == I2C2_IsBusy()) {
+            return (I2C_ERROR_NONE == I2C2_ErrorGet());
+        }
+        vTaskDelay(1);
+    }
+
+    I2C2_TransferAbort();
+    return false;
+}
+
+void APP_SENSORS_writeByte(uint8_t addr, uint8_t val)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)val;
+
+    DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)app_deviceData.i2c.txBuffer2, 1, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+        return;
+    }
+    i2cWaitForTransfer();
+}
+
+void APP_SENSORS_write(uint8_t addr, uint8_t *buffer, uint8_t size)
+{
+    memcpy(app_deviceData.i2c.txBuffer2, buffer, size);
+    
+    DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)app_deviceData.i2c.txBuffer2, size, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+        return;
+    }
+    i2cWaitForTransfer();
+}
+
+void APP_SENSORS_justRead(uint8_t addr, uint8_t size)
+{
+    DRV_I2C_ReadTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)&app_deviceData.i2c.rxBuffBytes, size, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C read error! \r\n");
+        return;
+    }
+    i2cWaitForTransfer();
+}
+
+void APP_SENSORS_writeReadBytes(uint8_t addr, uint16_t reg, uint8_t size)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)reg;
+    
+    DRV_I2C_WriteReadTransferAdd(app_deviceData.i2c.i2cHandle, 
+            addr, 
+            (void*)app_deviceData.i2c.txBuffer2, 1, 
+            (void*)&app_deviceData.i2c.rxBuffBytes, size, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write read error! \r\n");
+        return;
+    }
+    i2cWaitForTransfer();
+}
+
+void APP_SENSORS_writeReadWords(uint8_t addr, uint16_t reg, uint8_t size)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)reg;
+    
+    DRV_I2C_WriteReadTransferAdd(app_deviceData.i2c.i2cHandle, 
+            addr, 
+            (void*)app_deviceData.i2c.txBuffer2, 1, 
+            (void*)&app_deviceData.i2c.rxBuffWords, size, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write read error! \r\n");
+        return;
+    }
+    i2cWaitForTransfer();
+}
+
+void APP_SENSORS_writeWord_MSB_b4_LSB(uint8_t addr, uint16_t reg, uint16_t val)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)reg;
+    app_deviceData.i2c.txBuffer2[1] = (uint8_t)(val >> 8);
+    app_deviceData.i2c.txBuffer2[2] = (uint8_t)(val & 0x00FF);
+    
+    DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)app_deviceData.i2c.txBuffer2, 3, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+        return;
+    }
+    i2cWaitForTransfer();
+}
+
+void APP_SENSORS_writeWord_LSB_b4_MSB(uint8_t addr, uint16_t reg, uint16_t val)
+{
+    app_deviceData.i2c.txBuffer2[0] = (uint8_t)reg;
+    app_deviceData.i2c.txBuffer2[1] = (uint8_t)(val & 0x00FF);
+    app_deviceData.i2c.txBuffer2[2] = (uint8_t)(val >> 8);
+    
+    DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)app_deviceData.i2c.txBuffer2, 3, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+        return;
+    }
+    i2cWaitForTransfer();
+}
+
+
 // *****************************************************************************
 // *****************************************************************************
 // Section: Application Initialization and State Machine Functions
@@ -398,8 +644,76 @@ void APP_DEVICE_Initialize ( void )
     See prototype in app_device.h.
  */
 
+/* Sample both user buttons and drive the LEDs.
+ *
+ * This runs on every APP_DEVICE_Tasks() tick rather than from the
+ * APP_DEVICE_STATE_MONITOR_SWITCH1/2 and APP_DEVICE_STATE_SET_LED states.
+ * Those states sit on a branch of the sensor state machine that the normal
+ * loop no longer takes (APP_DEVICE_STATE_SENSORS_WAIT_READ_LIGHT returns to
+ * APP_DEVICE_STATE_SENSORS_CHECK), so the buttons were never sampled and the
+ * LEDs never followed the LED_Red/Green/Blue flags.  Sampling here also keeps
+ * the button response independent of the click-sensor cadence, which holds
+ * the state machine for a second at a time in APP_DEVICE_STATE_SENSORS_CHECK.
+ */
+static void monitorSwitchesAndLeds ( void )
+{
+    static uint8_t switch1PressedCnt = 0;
+    static uint8_t switch2PressedCnt = 0;
+
+    /* SWITCH 1 */
+    if (SWITCH1_Get() == SWITCH1_STATE_PRESSED)
+    {
+        switch1PressedCnt++;
+        if (switch1PressedCnt == 2)
+        {
+            app_deviceData.switch1Status = true;
+            app_deviceData.switch1Cnt++;
+            SYS_CONSOLE_PRINT("[app_device] SW1 pressed (%d)\r\n", app_deviceData.switch1Cnt);
+        }
+        else if (switch1PressedCnt == 100)
+        {
+            app_deviceData.switch1Cnt = 0;
+            SYS_CONSOLE_PRINT("[app_device] SW1 long press, count reset (%d)\r\n", app_deviceData.switch1Cnt);
+        }
+    }
+    else
+    {
+        switch1PressedCnt = 0;
+        app_deviceData.switch1Status = false;
+    }
+
+    /* SWITCH 2 */
+    if (SWITCH2_Get() == SWITCH2_STATE_PRESSED)
+    {
+        switch2PressedCnt++;
+        if (switch2PressedCnt == 2)
+        {
+            app_deviceData.switch2Status = true;
+            app_deviceData.switch2Cnt++;
+            SYS_CONSOLE_PRINT("[app_device] SW2 pressed (%d)\r\n", app_deviceData.switch2Cnt);
+        }
+        else if (switch2PressedCnt == 100)
+        {
+            app_deviceData.switch2Cnt = 0;
+            SYS_CONSOLE_PRINT("[app_device] SW2 long press, count reset (%d)\r\n", app_deviceData.switch2Cnt);
+        }
+    }
+    else
+    {
+        switch2PressedCnt = 0;
+        app_deviceData.switch2Status = false;
+    }
+
+    /* LEDs, so that cloud commands are reflected on the board */
+    if (app_deviceData.LED_Red)   {LED_RED_On();}   else {LED_RED_Off();}
+    if (app_deviceData.LED_Green) {LED_GREEN_On();} else {LED_GREEN_Off();}
+    if (app_deviceData.LED_Blue)  {LED_BLUE_On();}  else {LED_BLUE_Off();}
+}
+
 void APP_DEVICE_Tasks ( void )
 {
+    /* Sampled every tick, independent of the sensor state machine below. */
+    monitorSwitchesAndLeds();
 
     /* Check the application's current state. */
     switch ( app_deviceData.state )
@@ -407,6 +721,7 @@ void APP_DEVICE_Tasks ( void )
         /* Application's initial state. */
         case APP_DEVICE_STATE_INIT:
         {
+            sensorsInit();
             /* Open I2C driver client */
             app_deviceData.i2c.i2cHandle = DRV_I2C_Open( DRV_I2C_INDEX_0, DRV_IO_INTENT_READWRITE );
             if (app_deviceData.i2c.i2cHandle == DRV_HANDLE_INVALID)
@@ -418,81 +733,40 @@ void APP_DEVICE_Tasks ( void )
                 DRV_I2C_TransferEventHandlerSet(app_deviceData.i2c.i2cHandle, i2cTransferCallback, 0);
                 app_deviceData.state = APP_DEVICE_STATE_MONITOR_SWITCH1;
             }
+            /* check which click sensors are connected*/
+            check_click_sensors();
             
             /* Setup RTCC */
             setup_rtcc();   
-            app_deviceData.state = APP_DEVICE_STATE_IDLE;
+            app_deviceData.state = APP_DEVICE_STATE_SENSORS_CHECK;
+            
             break;
 
         }
         
+        /* The buttons and the LEDs are now serviced by
+         * monitorSwitchesAndLeds() on every APP_DEVICE_Tasks() tick, so these
+         * states only keep the chain intact for the error paths that still
+         * jump here.  Doing the work in both places would double-count a
+         * press. */
         case APP_DEVICE_STATE_MONITOR_SWITCH1:
         {
-            static uint8_t switch1PressedCnt = 0;
-            if (SWITCH1_Get() == SWITCH1_STATE_PRESSED)
-            {
-                switch1PressedCnt++ ;
-                if (switch1PressedCnt == 2)
-                {
-                    app_deviceData.switch1Status = true;
-                    app_deviceData.switch1Cnt++;
-                    SYS_CONSOLE_PRINT("[app_device] SW1 pressed (%d)\r\n", app_deviceData.switch1Cnt);
-                }
-                else if (switch1PressedCnt == 100)
-                {
-                    app_deviceData.switch1Cnt = 0;
-                    SYS_CONSOLE_PRINT("[app_device] SW1 pressed (%d)\r\n", app_deviceData.switch1Cnt);
-                
-                }
-            }
-            else
-            {
-                switch1PressedCnt = 0;
-                app_deviceData.switch1Status = false;
-            }
- 
             app_deviceData.state = APP_DEVICE_STATE_MONITOR_SWITCH2;
             break;
         }
-        
+
         case APP_DEVICE_STATE_MONITOR_SWITCH2:
         {
-            static uint8_t switch2PressedCnt = 0;
-            if (SWITCH2_Get() == SWITCH2_STATE_PRESSED)
-            {
-                switch2PressedCnt++ ;
-                if (switch2PressedCnt == 2)
-                {
-                    app_deviceData.switch2Status = true;
-                    app_deviceData.switch2Cnt++;
-                    SYS_CONSOLE_PRINT("[app_device] SW2 pressed (%d)\r\n", app_deviceData.switch2Cnt);
-                
-                }
-                else if (switch2PressedCnt == 100)
-                {
-                    app_deviceData.switch2Cnt = 0;
-                    SYS_CONSOLE_PRINT("[app_device] SW2 pressed (%d)\r\n", app_deviceData.switch2Cnt);
-                }
-            }
-            else
-            {
-                switch2PressedCnt = 0;
-                app_deviceData.switch2Status = false;
-            }
- 
             app_deviceData.state = APP_DEVICE_STATE_SET_LED;
             break;
         }
-        
+
         case APP_DEVICE_STATE_SET_LED:
         {
-            if (app_deviceData.LED_Red) {LED_RED_On();} else {LED_RED_Off();}
-            if (app_deviceData.LED_Green) {LED_GREEN_On();} else {LED_GREEN_Off();}
-            if (app_deviceData.LED_Blue) {LED_BLUE_On();} else {LED_BLUE_Off();          }
             app_deviceData.state = APP_DEVICE_STATE_SENSORS_CHECK;
             break;
-        }        
-        
+        }
+
         case APP_DEVICE_STATE_SENSORS_CHECK:
         {
             /* Read RTCC */
@@ -527,6 +801,9 @@ void APP_DEVICE_Tasks ( void )
                 app_deviceData.readSensors = false;
                 app_deviceData.state = APP_DEVICE_STATE_SENSORS_READ_TEMP;
             }
+            //SYS_CONSOLE_PRINT( "Reading Click sensors... \r\n");
+            read_click_sensors();
+            vTaskDelay( 1000 / portTICK_PERIOD_MS );
             break;
         } 
 
@@ -538,6 +815,7 @@ void APP_DEVICE_Tasks ( void )
                 app_deviceData.state = APP_DEVICE_STATE_SENSORS_WAIT_TURN_ON_MCP9808;
             else
                 app_deviceData.state = APP_DEVICE_STATE_SENSORS_TURN_ON_OPT3001;
+            
             break;
         }
         

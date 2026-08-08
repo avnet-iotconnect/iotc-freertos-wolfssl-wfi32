@@ -8,3 +8,7 @@
 /firmware/iotc-wfi32-aws-demo.X/nbproject/Makefile-*
 /firmware/iotc-wfi32-aws-demo.X/nbproject/Package-*
 /firmware/iotc-wfi32-aws-demo.X/nbproject/private/
+# Log artifacts (MPLAB X trace and queue logs).
+# *.log.* also covers the defmplabxtrace.log.inx index file.
+*.log
+*.log.*

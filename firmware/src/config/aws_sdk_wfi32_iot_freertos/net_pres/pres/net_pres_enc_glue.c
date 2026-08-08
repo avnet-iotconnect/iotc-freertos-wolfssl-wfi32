@@ -112,6 +112,7 @@ bool NET_PRES_EncProviderStreamClientInit0(NET_PRES_TransportObject * transObjec
 {
     const uint8_t * caCertsPtr;
     int32_t caCertsLen;
+    uint8_t caCertIndex;
     if (!NET_PRES_CertStoreGetCACerts(&caCertsPtr, &caCertsLen, 0))
     {
         return false;
@@ -131,12 +132,17 @@ bool NET_PRES_EncProviderStreamClientInit0(NET_PRES_TransportObject * transObjec
 	
     wolfSSL_SetIORecv(net_pres_wolfSSLInfoStreamClient0.context, (CallbackIORecv)&NET_PRES_EncGlue_StreamClientReceiveCb0);
     wolfSSL_SetIOSend(net_pres_wolfSSLInfoStreamClient0.context, (CallbackIOSend)&NET_PRES_EncGlue_StreamClientSendCb0);
-    if (wolfSSL_CTX_load_verify_buffer(net_pres_wolfSSLInfoStreamClient0.context, caCertsPtr, caCertsLen, SSL_FILETYPE_ASN1) != SSL_SUCCESS)
+    /* Load every root CA the store offers, not just index 0: the AWS IoT Core
+     * broker and the IoTConnect REST endpoints chain to different roots. */
+    for (caCertIndex = 0; NET_PRES_CertStoreGetCACerts(&caCertsPtr, &caCertsLen, caCertIndex); caCertIndex++)
     {
-        // Couldn't load the CA certificates
-        //SYS_CONSOLE_MESSAGE("Something went wrong loading the CA certificates\r\n");
-        wolfSSL_CTX_free(net_pres_wolfSSLInfoStreamClient0.context);
-        return false;
+        if (wolfSSL_CTX_load_verify_buffer(net_pres_wolfSSLInfoStreamClient0.context, caCertsPtr, caCertsLen, SSL_FILETYPE_ASN1) != SSL_SUCCESS)
+        {
+            // Couldn't load the CA certificates
+            SYS_CONSOLE_PRINT("[NET_PRES] failed loading CA certificate %u\r\n", (unsigned)caCertIndex);
+            wolfSSL_CTX_free(net_pres_wolfSSLInfoStreamClient0.context);
+            return false;
+        }
     }
     /*initialize Trust*Go and load device certificate into the context*/
    atcatls_set_callbacks(net_pres_wolfSSLInfoStreamClient0.context);
@@ -200,6 +206,10 @@ NET_PRES_EncSessionStatus NET_PRES_EncProviderClientConnect0(void * providerData
                 case SSL_ERROR_WANT_WRITE:
                     return NET_PRES_ENC_SS_CLIENT_NEGOTIATING;
                 default:
+                    /* Without this the caller only sees "negotiation failed";
+                     * the wolfSSL code says why (e.g. -188 ASN_NO_SIGNER_E =
+                     * no trusted root for the server's chain). */
+                    SYS_CONSOLE_PRINT("[NET_PRES] TLS handshake failed, wolfSSL error %d\r\n", error);
                     return NET_PRES_ENC_SS_FAILED;
             }
         }

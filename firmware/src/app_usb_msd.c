@@ -30,6 +30,14 @@
 
 #define APP_CTRL_CLIENTID_SIZE ((2 * KEYID_SIZE) + 1)
 
+/* The broker endpoint is obtained at run time from the IoTConnect discovery
+ * and identity REST APIs, so IOT_DEMO_SERVER may be commented out in
+ * iotc_config.h.  The generated cloud.json then carries an empty Endpoint;
+ * it is informational only, nothing connects with it. */
+#ifndef IOT_DEMO_SERVER
+#define IOT_DEMO_SERVER ""
+#endif
+
 // *****************************************************************************
 
 uint8_t CACHE_ALIGN work[SYS_FS_FAT_MAX_SS];
