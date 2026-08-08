@@ -206,6 +206,10 @@ void APP_SENSORS_writeWord_LSB_b4_MSB(uint8_t addr, uint16_t reg, uint16_t val);
 void APP_SENSORS_justRead(uint8_t addr, uint8_t size);
 void APP_SENSORS_writeReadBytes(uint8_t addr, uint16_t reg, uint8_t size);
 void APP_SENSORS_writeReadWords(uint8_t addr, uint16_t reg, uint8_t size);
+bool APP_SENSORS_probe(uint8_t addr);
+bool APP_SENSORS_probeI2C2(uint8_t addr);
+bool APP_SENSORS_writeReadBytesI2C2(uint8_t addr, uint8_t reg, uint8_t *dst, uint8_t size);
+bool APP_SENSORS_cmdThenReadI2C2(uint8_t addr, uint8_t cmd, uint8_t *dst, uint8_t size);
 
 /*******************************************************************************
   Function:

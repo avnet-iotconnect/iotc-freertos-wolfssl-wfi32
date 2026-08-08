@@ -155,30 +155,59 @@ static DRV_I2C_CLIENT_OBJ drvI2C0ClientObjPool[DRV_I2C_CLIENTS_NUMBER_IDX0];
 /* I2C Transfer Objects Pool */
 static DRV_I2C_TRANSFER_OBJ drvI2C0TransferObj[DRV_I2C_QUEUE_SIZE_IDX0];
 
+/* DIAGNOSTIC ONLY - revert before shipping.
+ * Points DRV_I2C instance 0 at I2C2 instead of I2C1, so the mikroBUS can be
+ * scanned through the driver (which reports real per-transfer status) rather
+ * than raw plib calls that race with cryptoauthlib on the same bus.
+ * Set DIAG_I2C_USE_I2C1 back to 1 to restore stock behaviour. */
+#define DIAG_I2C_USE_I2C1   1
+
+#if DIAG_I2C_USE_I2C1
+  #define DIAG_I2C_Read              I2C1_Read
+  #define DIAG_I2C_Write             I2C1_Write
+  #define DIAG_I2C_WriteRead         I2C1_WriteRead
+  #define DIAG_I2C_TransferAbort     I2C1_TransferAbort
+  #define DIAG_I2C_ErrorGet          I2C1_ErrorGet
+  #define DIAG_I2C_TransferSetup     I2C1_TransferSetup
+  #define DIAG_I2C_CallbackRegister  I2C1_CallbackRegister
+  #define _DIAG_I2C_BUS_VECTOR       _I2C1_BUS_VECTOR
+  #define _DIAG_I2C_MASTER_VECTOR    _I2C1_MASTER_VECTOR
+#else
+  #define DIAG_I2C_Read              I2C2_Read
+  #define DIAG_I2C_Write             I2C2_Write
+  #define DIAG_I2C_WriteRead         I2C2_WriteRead
+  #define DIAG_I2C_TransferAbort     I2C2_TransferAbort
+  #define DIAG_I2C_ErrorGet          I2C2_ErrorGet
+  #define DIAG_I2C_TransferSetup     I2C2_TransferSetup
+  #define DIAG_I2C_CallbackRegister  I2C2_CallbackRegister
+  #define _DIAG_I2C_BUS_VECTOR       _I2C2_BUS_VECTOR
+  #define _DIAG_I2C_MASTER_VECTOR    _I2C2_MASTER_VECTOR
+#endif
+
 /* I2C PLib Interface Initialization */
 static const DRV_I2C_PLIB_INTERFACE drvI2C0PLibAPI = {
 
     /* I2C PLib Transfer Read Add function */
-    .read_t = (DRV_I2C_PLIB_READ)I2C1_Read,
+    .read_t = (DRV_I2C_PLIB_READ)DIAG_I2C_Read,
 
     /* I2C PLib Transfer Write Add function */
-    .write_t = (DRV_I2C_PLIB_WRITE)I2C1_Write,
+    .write_t = (DRV_I2C_PLIB_WRITE)DIAG_I2C_Write,
 
 
     /* I2C PLib Transfer Write Read Add function */
-    .writeRead = (DRV_I2C_PLIB_WRITE_READ)I2C1_WriteRead,
+    .writeRead = (DRV_I2C_PLIB_WRITE_READ)DIAG_I2C_WriteRead,
 
     /*I2C PLib Transfer Abort function */
-    .transferAbort = (DRV_I2C_PLIB_TRANSFER_ABORT)I2C1_TransferAbort,
+    .transferAbort = (DRV_I2C_PLIB_TRANSFER_ABORT)DIAG_I2C_TransferAbort,
 
     /* I2C PLib Transfer Status function */
-    .errorGet = (DRV_I2C_PLIB_ERROR_GET)I2C1_ErrorGet,
+    .errorGet = (DRV_I2C_PLIB_ERROR_GET)DIAG_I2C_ErrorGet,
 
     /* I2C PLib Transfer Setup function */
-    .transferSetup = (DRV_I2C_PLIB_TRANSFER_SETUP)I2C1_TransferSetup,
+    .transferSetup = (DRV_I2C_PLIB_TRANSFER_SETUP)DIAG_I2C_TransferSetup,
 
     /* I2C PLib Callback Register */
-    .callbackRegister = (DRV_I2C_PLIB_CALLBACK_REGISTER)I2C1_CallbackRegister,
+    .callbackRegister = (DRV_I2C_PLIB_CALLBACK_REGISTER)DIAG_I2C_CallbackRegister,
 };
 
 
@@ -188,8 +217,8 @@ static const DRV_I2C_INTERRUPT_SOURCES drvI2C0InterruptSources =
     .isSingleIntSrc                        = false,
 
     /* Peripheral interrupt lines */
-    .intSources.multi.i2cInt0          = (int32_t)_I2C1_BUS_VECTOR,
-    .intSources.multi.i2cInt1          = (int32_t)_I2C1_MASTER_VECTOR,
+    .intSources.multi.i2cInt0          = (int32_t)_DIAG_I2C_BUS_VECTOR,
+    .intSources.multi.i2cInt1          = (int32_t)_DIAG_I2C_MASTER_VECTOR,
     .intSources.multi.i2cInt2          = -1,
     .intSources.multi.i2cInt3          = -1,
 };

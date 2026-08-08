@@ -46,9 +46,14 @@ static void wifiConnectCallback(DRV_HANDLE handle, WDRV_PIC32MZW_ASSOC_HANDLE as
             appData.assocHandle = assocHandle;
             WIFI_CONNECTED;
 
+            /* Stay in RUN mode rather than WSM. WSM dozes with a listen
+             * interval of 10 beacons (~1s), so every inbound packet can be
+             * delayed that long. TLS handshakes and QoS 1 PUBACKs are several
+             * round trips each, so they time out, and the AP backs the rate
+             * down to 6 Mbps because of the missed frames. */
             WDRV_PIC32MZW_PowerSaveBroadcastTrackingSet(appData.wdrvHandle,true);
             WDRV_PIC32MZW_PowerSaveModeSet(appData.wdrvHandle,
-                    WDRV_PIC32MZW_POWERSAVE_WSM_MODE,
+                    WDRV_PIC32MZW_POWERSAVE_RUN_MODE,
                     WDRV_PIC32MZW_POWERSAVE_PIC_ASYNC_MODE,
                     NULL);
 

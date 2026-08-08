@@ -355,16 +355,153 @@ uint32_t APP_readLight(void)
 
 
 /* i2c functions for click sensors */
+
+/* The click drivers parse app_deviceData.i2c.rxBuff* the moment the helpers
+ * below return, but DRV_I2C_*TransferAdd only queues the transfer. Without
+ * waiting for it to finish, every probe reads a buffer that is still empty,
+ * so no click board is ever detected. */
+#define I2C_CLICK_TRANSFER_TIMEOUT_TICKS  200
+
+static bool i2cWaitForTransfer(void)
+{
+    uint16_t ticks;
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        return false;
+    }
+
+    for(ticks = 0; ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS; ticks++) {
+        /* Read through the driver rather than i2c.transferStatus: that field is
+         * written from the transfer callback and is not volatile, so a polling
+         * loop here could be optimised into an infinite one. */
+        switch(DRV_I2C_TransferStatusGet(app_deviceData.i2c.transferHandle)) {
+            case DRV_I2C_TRANSFER_EVENT_COMPLETE:
+                return true;
+            case DRV_I2C_TRANSFER_EVENT_PENDING:
+                vTaskDelay(1);
+                break;
+            default:
+                /* ERROR, HANDLE_INVALID, or HANDLE_EXPIRED - nothing to read */
+                return false;
+        }
+    }
+
+    return false;
+}
+
+/* Single-byte read used only to see which addresses acknowledge, so we can tell
+ * "click is on another bus / unpowered" apart from "driver logic is wrong". */
+bool APP_SENSORS_probe(uint8_t addr)
+{
+    DRV_I2C_ReadTransferAdd(app_deviceData.i2c.i2cHandle,
+            addr, (void*)&app_deviceData.i2c.rxBuffBytes, 1, &app_deviceData.i2c.transferHandle);
+
+    if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
+        return false;
+    }
+    return i2cWaitForTransfer();
+}
+
+/* Same probe against I2C2, which is initialised but not owned by DRV_I2C.
+ * A transfer that never completes tells us nothing, so it must report "absent"
+ * rather than falling through to ErrorGet() - reading the error of an unfinished
+ * transfer returns I2C_ERROR_NONE and makes every address look like a device. */
+bool APP_SENSORS_probeI2C2(uint8_t addr)
+{
+    uint8_t scratch = 0;
+    uint16_t ticks;
+
+    (void)I2C2_ErrorGet();      /* discard any error left by the previous probe */
+
+    if(false == I2C2_Read(addr, &scratch, 1)) {
+        return false;
+    }
+
+    for(ticks = 0; ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS; ticks++) {
+        if(false == I2C2_IsBusy()) {
+            return (I2C_ERROR_NONE == I2C2_ErrorGet());
+        }
+        vTaskDelay(1);
+    }
+
+    /* Still busy: abort so a half-finished transaction cannot poison the next
+     * probe, and report nothing found. */
+    I2C2_TransferAbort();
+    return false;
+}
+
+/* Real register read over I2C2, so a click can be confirmed by the data it
+ * returns rather than by a bare address ACK. Back-to-back address probes on
+ * this bus produce periodic false positives; an actual payload does not. */
+bool APP_SENSORS_writeReadBytesI2C2(uint8_t addr, uint8_t reg, uint8_t *dst, uint8_t size)
+{
+    uint16_t ticks;
+    uint8_t cmd = reg;
+
+    (void)I2C2_ErrorGet();
+
+    if(false == I2C2_WriteRead(addr, &cmd, 1, dst, size)) {
+        return false;
+    }
+
+    for(ticks = 0; ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS; ticks++) {
+        if(false == I2C2_IsBusy()) {
+            return (I2C_ERROR_NONE == I2C2_ErrorGet());
+        }
+        vTaskDelay(1);
+    }
+
+    I2C2_TransferAbort();
+    return false;
+}
+
+/* Separate command write then delayed read on I2C2. A repeated-start WriteRead
+ * gives a sensor no time to prepare its answer, so a failure there does not
+ * prove absence; this two-step form does. */
+bool APP_SENSORS_cmdThenReadI2C2(uint8_t addr, uint8_t cmd, uint8_t *dst, uint8_t size)
+{
+    uint16_t ticks;
+    uint8_t cmdByte = cmd;
+
+    (void)I2C2_ErrorGet();
+    if(false == I2C2_Write(addr, &cmdByte, 1)) {
+        return false;
+    }
+    for(ticks = 0; (ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS) && I2C2_IsBusy(); ticks++) {
+        vTaskDelay(1);
+    }
+    if(I2C_ERROR_NONE != I2C2_ErrorGet()) {
+        return false;
+    }
+
+    vTaskDelay(5);      /* let the device latch its response */
+
+    if(false == I2C2_Read(addr, dst, size)) {
+        return false;
+    }
+    for(ticks = 0; ticks < I2C_CLICK_TRANSFER_TIMEOUT_TICKS; ticks++) {
+        if(false == I2C2_IsBusy()) {
+            return (I2C_ERROR_NONE == I2C2_ErrorGet());
+        }
+        vTaskDelay(1);
+    }
+
+    I2C2_TransferAbort();
+    return false;
+}
+
 void APP_SENSORS_writeByte(uint8_t addr, uint8_t val)
 {
     app_deviceData.i2c.txBuffer2[0] = (uint8_t)val;
-    
+
     DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
             addr, (void*)app_deviceData.i2c.txBuffer2, 1, &app_deviceData.i2c.transferHandle);
-    
+
     if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
         SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+        return;
     }
+    i2cWaitForTransfer();
 }
 
 void APP_SENSORS_write(uint8_t addr, uint8_t *buffer, uint8_t size)
@@ -373,20 +510,24 @@ void APP_SENSORS_write(uint8_t addr, uint8_t *buffer, uint8_t size)
     
     DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
             addr, (void*)app_deviceData.i2c.txBuffer2, size, &app_deviceData.i2c.transferHandle);
-    
+
     if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
         SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+        return;
     }
+    i2cWaitForTransfer();
 }
 
 void APP_SENSORS_justRead(uint8_t addr, uint8_t size)
 {
-    DRV_I2C_ReadTransferAdd(app_deviceData.i2c.i2cHandle, 
+    DRV_I2C_ReadTransferAdd(app_deviceData.i2c.i2cHandle,
             addr, (void*)&app_deviceData.i2c.rxBuffBytes, size, &app_deviceData.i2c.transferHandle);
-    
+
     if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
         SYS_CONSOLE_PRINT( "I2C read error! \r\n");
+        return;
     }
+    i2cWaitForTransfer();
 }
 
 void APP_SENSORS_writeReadBytes(uint8_t addr, uint16_t reg, uint8_t size)
@@ -397,10 +538,12 @@ void APP_SENSORS_writeReadBytes(uint8_t addr, uint16_t reg, uint8_t size)
             addr, 
             (void*)app_deviceData.i2c.txBuffer2, 1, 
             (void*)&app_deviceData.i2c.rxBuffBytes, size, &app_deviceData.i2c.transferHandle);
-    
+
     if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
         SYS_CONSOLE_PRINT( "I2C write read error! \r\n");
+        return;
     }
+    i2cWaitForTransfer();
 }
 
 void APP_SENSORS_writeReadWords(uint8_t addr, uint16_t reg, uint8_t size)
@@ -411,10 +554,12 @@ void APP_SENSORS_writeReadWords(uint8_t addr, uint16_t reg, uint8_t size)
             addr, 
             (void*)app_deviceData.i2c.txBuffer2, 1, 
             (void*)&app_deviceData.i2c.rxBuffWords, size, &app_deviceData.i2c.transferHandle);
-    
+
     if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
         SYS_CONSOLE_PRINT( "I2C write read error! \r\n");
+        return;
     }
+    i2cWaitForTransfer();
 }
 
 void APP_SENSORS_writeWord_MSB_b4_LSB(uint8_t addr, uint16_t reg, uint16_t val)
@@ -425,10 +570,12 @@ void APP_SENSORS_writeWord_MSB_b4_LSB(uint8_t addr, uint16_t reg, uint16_t val)
     
     DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
             addr, (void*)app_deviceData.i2c.txBuffer2, 3, &app_deviceData.i2c.transferHandle);
-    
+
     if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
         SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+        return;
     }
+    i2cWaitForTransfer();
 }
 
 void APP_SENSORS_writeWord_LSB_b4_MSB(uint8_t addr, uint16_t reg, uint16_t val)
@@ -439,10 +586,12 @@ void APP_SENSORS_writeWord_LSB_b4_MSB(uint8_t addr, uint16_t reg, uint16_t val)
     
     DRV_I2C_WriteTransferAdd(app_deviceData.i2c.i2cHandle,
             addr, (void*)app_deviceData.i2c.txBuffer2, 3, &app_deviceData.i2c.transferHandle);
-    
+
     if(app_deviceData.i2c.transferHandle == DRV_I2C_TRANSFER_HANDLE_INVALID) {
         SYS_CONSOLE_PRINT( "I2C write error! \r\n");
+        return;
     }
+    i2cWaitForTransfer();
 }
 
 

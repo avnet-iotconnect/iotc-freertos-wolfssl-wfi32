@@ -68,7 +68,11 @@
 
 /** MQTT CONNACK / SUBACK / PUBACK timeout (ms). */
 #ifndef IOTC_MQTT_TIMEOUT_MS
-#define IOTC_MQTT_TIMEOUT_MS            (5000U)
+/* A QoS 1 publish is configured to retry PUBLISH_RETRY_LIMIT times every
+ * PUBLISH_RETRY_MS, so the synchronous wait has to outlast that schedule.
+ * At 5s it expired while the retries were still in flight and every send was
+ * reported as failed, which is fatal on a weak link. */
+#define IOTC_MQTT_TIMEOUT_MS            (30000U)
 #endif
 
 /** Default number of telemetry publishes when the config value is 0. */
@@ -145,8 +149,9 @@ static void iotc_mqtt_send_cb(const char *topic, const char *json_str)
     if (status == IOT_MQTT_SUCCESS) {
         IOTC_PRNT("published -> %s : %s\r\n", topic, json_str);
     } else {
-        IOTC_DBG(SYS_ERROR_ERROR, "publish to %s failed (%s)\r\n",
-                 topic, IotMqtt_strerror(status));
+        IOTC_DBG(SYS_ERROR_ERROR, "publish to %s failed (%s), %u byte payload: %s\r\n",
+                 topic, IotMqtt_strerror(status),
+                 (unsigned)publishInfo.payloadLength, json_str);
     }
 }
 
